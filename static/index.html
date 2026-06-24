@@ -1,0 +1,720 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Rsaga TRPG Bot</title>
+<style>
+  :root {
+    --bg: #14110f; --panel: #211a15; --accent: #f1c978; --accent-dim: #b88a3e;
+    --text: #f3ead7; --muted: #9a8f7e; --bubble-u: #3a2e22; --bubble-a: #2a221b;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  #bgLayer { position: fixed; inset: 0; z-index: 0; background:#14110f; overflow:hidden; }
+  #bgLayer img { width:100%; height:auto; object-fit:contain; opacity: 0; transition: opacity 1.2s ease; position:absolute; top:50%; left:0; transform:translateY(-50%); }
+  #bgLayer.show img { opacity: 0.5; }
+  #bgLayer.loading::after { content: "正在绘制场景…"; position: absolute; bottom: 80px; left: 50%; transform: translateX(-50%);
+    color: var(--accent); font-size: 12px; background: rgba(0,0,0,.5); padding: 4px 12px; border-radius: 12px; z-index:2; }
+  html, body { margin: 0; height: 100%; background: transparent; color: var(--text);
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; }
+  body { display: flex; flex-direction: column; height: 100vh; height: 100dvh; }
+
+  #log { flex: 1; overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 10px; position: relative; z-index: 1; }
+  .msg { max-width: 86%; padding: 11px 15px; border-radius: 16px; font-size: 16px; line-height: 1.5; word-break: break-word; white-space: pre-wrap;
+    color:#fff; -webkit-text-stroke:0.5px #000; text-shadow:0 0 3px #000,0 0 3px #000; }
+  .u { align-self: flex-end; border: 1px solid rgba(241,201,120,0.7); border-bottom-right-radius: 5px; }
+  .a { align-self: flex-start; border: 1px solid rgba(241,201,120,0.7); border-bottom-left-radius: 5px; }
+  .msg img { max-width: 100%; max-height: 240px; border-radius: 10px; display: block; margin-top: 6px; }
+  .msg .editBtn { position:absolute; top:-6px; right:-6px; background:var(--panel); border:1px solid #4a3f34; color:var(--accent); font-size:11px; width:22px; height:22px; border-radius:50%; display:none; cursor:pointer; align-items:center; justify-content:center; }
+  .msg.u { position:relative; }
+  .msg.u:hover .editBtn, .msg.u.touch .editBtn { display:flex; }
+  .msg .editArea { width:100%; background:#0f0c0a; color:var(--text); border:1px solid var(--accent); border-radius:8px; padding:8px; font-size:15px; font-family:inherit; resize:vertical; min-height:48px; }
+  .msg .editActs { display:flex; gap:6px; margin-top:6px; justify-content:flex-end; }
+  .msg .editActs button { padding:5px 12px; border-radius:8px; border:none; cursor:pointer; font-size:13px; }
+  .msg .editActs .r { background:var(--accent); color:#1a1208; }
+  .msg .editActs .c { background:#3a2f24; color:var(--text); }
+  #imgBtn { flex: 0 0 auto; width: 56px; height: 56px; border-radius: 50%; border: none;
+    background: var(--panel); color: var(--accent); font-size: 22px; cursor: pointer; border: 1px solid #3a2f24; }
+  #imgBtn:disabled { opacity: .4; }
+  .sys { align-self: center; color: var(--muted); font-size: 13px; padding: 4px; }
+  .err { align-self: center; color: #ff9a8a; font-size: 13px; padding: 6px 10px; background: #3a201b; border-radius: 10px; }
+
+  #bar { padding: 10px 12px calc(10px + env(safe-area-inset-bottom)); background: rgba(20,17,15,0.82);
+    border-top: 1px solid #2e251d; display: flex; gap: 8px; align-items: center; position: relative; z-index: 1; backdrop-filter: blur(6px); }
+  #rec { flex: 0 0 auto; width: 56px; height: 56px; border-radius: 50%; border: none;
+    background: var(--accent); color: #1a1208; font-size: 22px; cursor: pointer; transition: all .15s; }
+  #rec.recording { background: #d9483a; color: #fff; transform: scale(1.08); }
+  #rec:disabled { opacity: .4; }
+  #box { flex: 1; background: var(--panel); border: 1px solid #3a2f24; border-radius: 20px;
+    padding: 13px 14px; color: var(--text); font-size: 16px; resize: none; max-height: 90px; min-height: 24px; line-height: 1.4; }
+  #send { flex: 0 0 auto; width: 56px; height: 56px; border-radius: 50%; border: none;
+    background: var(--accent); color: #1a1208; font-size: 20px; cursor: pointer; }
+  #send:disabled { opacity: .4; }
+
+  #gate { position: fixed; inset: 0; background: var(--bg); display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 12px; padding: 30px; z-index: 50; }
+  #gate input { width: 100%; max-width: 320px; padding: 13px; border-radius: 12px; border: 1px solid #3a2f24;
+    background: var(--panel); color: var(--text); font-size: 16px; }
+  #gate button { padding: 12px 28px; border-radius: 12px; border: none; background: var(--accent);
+    color: #1a1208; font-size: 16px; cursor: pointer; }
+  .hidden { display: none !important; }
+  #status { text-align: center; color: var(--muted); font-size: 12px; padding: 4px; min-height: 18px; position: relative; z-index: 1; }
+  #topbar { display:flex; justify-content:space-between; align-items:center; padding:8px 14px 0; gap:8px; position:relative; z-index:1; }
+  #topbar .cur { color:var(--accent); font-size:13px; }
+  #topbar button { background:transparent; border:1px solid #3a2f24; color:var(--accent); padding:6px 14px; border-radius:10px; font-size:13px; cursor:pointer; }
+  #personaDlg { position:fixed; inset:0; background:rgba(0,0,0,.6); display:flex; align-items:center; justify-content:center; z-index:60; padding:12px; }
+  #personaDlg .box { background:#1a1511; border:1px solid #3a2f24; border-radius:14px; padding:14px; width:100%; max-width:600px; display:flex; flex-direction:column; gap:10px; max-height:92vh; }
+  #personaDlg h3 { margin:0; color:var(--accent); font-size:16px; }
+  #personaDlg .body { display:flex; gap:12px; flex:1; min-height:300px; overflow:hidden; }
+  #personaList { flex:0 0 150px; overflow-y:auto; display:flex; flex-direction:column; gap:4px; }
+  #personaList .item { padding:9px 10px; border-radius:8px; background:var(--panel); color:var(--text); font-size:13px; cursor:pointer; border:1px solid transparent; display:flex; justify-content:space-between; align-items:center; gap:4px; }
+  #personaList .item.active { border-color:var(--accent); background:#3a2e22; }
+  #personaList .item .del { color:#d9483a; font-size:12px; opacity:.6; }
+  #personaList .item .del:hover { opacity:1; }
+  #personaList .new { background:transparent; border:1px dashed #4a3f34; color:var(--muted); text-align:center; }
+  #personaEdit { flex:1; display:flex; flex-direction:column; gap:8px; overflow-y:auto; }
+  #personaEdit label { font-size:12px; color:var(--muted); }
+  #personaEdit input[type=text] { background:var(--panel); color:var(--text); border:1px solid #3a2f24; border-radius:8px; padding:9px; font-size:15px; }
+  #personaEdit .row { display:flex; align-items:center; gap:10px; }
+  #personaEdit input[type=range] { flex:1; accent-color:var(--accent); }
+  #personaEdit .tempval { color:var(--accent); font-size:14px; min-width:38px; text-align:right; }
+  #personaEdit textarea { width:100%; height:170px; background:var(--panel); color:var(--text); border:1px solid #3a2f24; border-radius:10px; padding:12px; font-size:14px; line-height:1.5; resize:vertical; font-family:inherit; }
+  #personaDlg .acts { display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap; }
+  #personaDlg .acts button { padding:9px 16px; border-radius:10px; border:none; cursor:pointer; font-size:13px; }
+  #personaDlg .save { background:var(--accent); color:#1a1208; }
+  #personaDlg .use { background:#2d5a3d; color:#fff; }
+  #personaDlg .cancel { background:#3a2f24; color:var(--text); }
+  #personaDlg .hint { color:var(--muted); font-size:12px; }
+  #quickBar { display:flex; gap:6px; padding:6px 10px; overflow-x:auto; position:relative; z-index:1;
+    background:rgba(20,17,15,0.6); border-top:1px solid #2e251d; }
+  #quickBar .qbtn { flex:0 0 auto; min-width:34px; height:32px; padding:0 10px; border-radius:16px;
+    border:1px solid #3a2f24; background:rgba(58,46,34,0.7); color:var(--text); font-size:14px; cursor:pointer; }
+  #quickBar .qbtn:active { background:var(--accent); color:#1a1208; }
+  #quickBar .qbtn.cont { background:rgba(45,90,61,0.7); color:#cfe8d4; }
+  .reply-text { white-space: pre-wrap; word-break: break-word; }
+  .replay { display:block; height:32px; line-height:32px; padding:0 16px; border-radius:16px;
+    border:1px solid var(--accent); background:var(--accent) !important; color:#1a1208 !important;
+    font-size:14px; font-weight:600; cursor:pointer; margin-top:10px; text-align:center;
+    -webkit-appearance:none; appearance:none; text-shadow:none !important; }
+  .replay:active { opacity:0.7; }
+</style>
+</head>
+<body>
+
+<!-- 底层背景图层（角色扮演时生成黑白漫画） -->
+<div id="bgLayer"><img id="bgImg" alt=""></div>
+
+<!-- 鉴权门：后端配了 BOT_TOKEN 才需要输入。无 token 时后端直接放行，这里也能空着进。 -->
+<div id="gate" class="hidden">
+  <div style="font-size:17px;color:var(--accent)">输入访问口令</div>
+  <input id="tokenInput" type="password" placeholder="口令" autocomplete="off">
+  <button id="tokenBtn">进入</button>
+</div>
+
+<div id="topbar"><span class="cur" id="curPersona">角色加载中…</span>
+  <div style="display:flex;gap:6px;align-items:center">
+    <span style="color:var(--accent);font-size:13px;font-weight:600">Rsaga TRPG Bot</span>
+    <span style="color:#5a4f44;font-size:10px">v11</span>
+    <button id="clearBtn" title="清空当前对话">🗑 清空</button>
+    <button id="personaBtn">🎭 角色</button>
+  </div>
+</div>
+<div id="log"></div>
+<div id="status"></div>
+<!-- 文字游戏快捷选项 -->
+<div id="quickBar">
+  <button class="qbtn" data-t="A">A</button>
+  <button class="qbtn" data-t="B">B</button>
+  <button class="qbtn" data-t="C">C</button>
+  <button class="qbtn" data-t="D">D</button>
+  <button class="qbtn" data-t="1">1</button>
+  <button class="qbtn" data-t="2">2</button>
+  <button class="qbtn" data-t="3">3</button>
+  <button class="qbtn" data-t="4">4</button>
+  <button class="qbtn cont" data-t="继续">继续</button>
+</div>
+<div id="bar">
+  <button id="imgBtn" title="发图/拍照">📷</button>
+  <textarea id="box" rows="1" placeholder="输入文字，回车发送"></textarea>
+  <button id="rec" title="录音">🎤</button>
+  <button id="send" title="发送">➤</button>
+</div>
+<input type="file" id="imgInput" accept="image/*" capture="environment" style="display:none">
+
+<audio id="player" playsinline></audio>
+<!-- 微信等被拦时的手动播放按钮 -->
+<button id="playBtn" class="hidden" style="position:fixed;bottom:90px;left:50%;transform:translateX(-50%);z-index:70;background:var(--accent);color:#1a1208;border:none;border-radius:30px;padding:12px 28px;font-size:16px;box-shadow:0 4px 16px rgba(0,0,0,.4)">▶ 点击播放语音</button>
+
+<!-- 角色管理弹窗 -->
+<div id="personaDlg" class="hidden">
+  <div class="box">
+    <h3>🎭 角色管理</h3>
+    <div class="body">
+      <div id="personaList"></div>
+      <div id="personaEdit">
+        <div><label>名字</label><input type="text" id="pName" placeholder="角色名"></div>
+        <div>
+          <label>温度 <span id="tempHint" style="color:var(--muted)">(越低越稳定，越高越发散)</span></label>
+          <div class="row">
+            <input type="range" id="pTemp" min="0" max="2" step="0.1" value="1.0">
+            <span class="tempval" id="pTempVal">1.0</span>
+          </div>
+        </div>
+        <div><label>音色（朗读声音）</label>
+          <select id="pVoice" style="width:100%;background:var(--panel);color:var(--text);border:1px solid #3a2f24;border-radius:8px;padding:9px;font-size:14px"></select>
+        </div>
+        <div><label>提示词 / 人设</label></div>
+        <textarea id="pPrompt" placeholder="描述这个角色的性格、语气、回答风格…"></textarea>
+      </div>
+    </div>
+    <div class="hint">「使用此角色」会切换并清空当前对话（每角色独立会话）。「保存」写入角色库。</div>
+    <div class="acts">
+      <button class="cancel" id="personaCancel">关闭</button>
+      <button class="use" id="personaUse">使用此角色</button>
+      <button class="save" id="personaSave">保存</button>
+    </div>
+  </div>
+</div>
+<script>
+// ── 解锁音频自动播放 ──
+// 移动端浏览器要求 play() 在用户手势同步上下文内首次调用，否则异步播放被静默拒绝。
+// 在用户首次点击/触摸时同步播一个静音帧，给后续异步 play 放行。
+let audioUnlocked = false;
+function unlockAudio() {
+  if (audioUnlocked) return;
+  try {
+    player.muted = true;
+    player.play().then(() => { player.muted = false; audioUnlocked = true; }).catch(() => {});
+  } catch (e) {}
+}
+document.addEventListener("touchstart", unlockAudio, { once: true, passive: true });
+document.addEventListener("click", unlockAudio, { once: true, passive: true });
+</script>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const logEl = $("log"), box = $("box"), sendBtn = $("send"), recBtn = $("rec");
+const player = $("player"), statusEl = $("status");
+
+// ── 会话与 token ──
+const SID_KEY = "voicebot.sid", TOK_KEY = "voicebot.token";
+let sid = localStorage.getItem(SID_KEY);
+if (!sid) { sid = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now())); localStorage.setItem(SID_KEY, sid); }
+let token = localStorage.getItem(TOK_KEY) || "";
+
+// ── 鉴权门 ──
+async function checkGate() {
+  try {
+    const r = await fetch("/api/health", { headers: tokHdr() });
+    if (r.status === 401) { showGate(); }
+    else { hideGate(); }
+  } catch { /* 网络问题不拦 */ }
+}
+function showGate() { $("gate").classList.remove("hidden"); $("tokenInput").focus(); }
+function hideGate() { $("gate").classList.add("hidden"); }
+function tokHdr() { const h = {}; if (token) h["X-Bot-Token"] = token; return h; }
+$("tokenBtn").addEventListener("click", () => {
+  token = $("tokenInput").value.trim(); localStorage.setItem(TOK_KEY, token); checkGate();
+});
+$("tokenInput").addEventListener("keydown", (e) => { if (e.key === "Enter") $("tokenBtn").click(); });
+
+// ── 消息渲染 ──
+// renderedMsgs: 跟踪已渲染的消息 DOM，对应后端历史顺序（用于编辑重发时定位+清理）
+const renderedMsgs = [];
+function addMsg(text, who) {
+  const d = document.createElement("div");
+  d.className = "msg " + who;
+  d.textContent = text;
+  if (who === "u") {
+    d.dataset.idx = renderedMsgs.length;  // 该消息在后端历史数组的索引
+    const edit = document.createElement("span");
+    edit.className = "editBtn"; edit.textContent = "✏";
+    edit.title = "编辑重发";
+    edit.onclick = (e) => { e.stopPropagation(); startEdit(d); };
+    d.appendChild(edit);
+    // 移动端无 hover：点气泡切换编辑按钮显示
+    d.addEventListener("click", (e) => {
+      if (e.target === edit) return;
+      d.classList.toggle("touch");
+    });
+  }
+  logEl.appendChild(d); logEl.scrollTop = logEl.scrollHeight;
+  renderedMsgs.push(d);
+  return d;
+}
+function addSys(text) { const d = document.createElement("div"); d.className = "sys"; d.textContent = text; logEl.appendChild(d); logEl.scrollTop = logEl.scrollHeight; }
+function addErr(text) { const d = document.createElement("div"); d.className = "err"; d.textContent = "⚠ " + text; logEl.appendChild(d); logEl.scrollTop = logEl.scrollHeight; }
+function setBusy(b) { statusEl.textContent = b ? "思考中…" : ""; sendBtn.disabled = b; recBtn.disabled = b; $("imgBtn").disabled = b; }
+
+// ── 文字游戏快捷选项 ──
+document.querySelectorAll("#quickBar .qbtn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    if (sendBtn.disabled) return;  // 生成中禁用
+    sendText(btn.dataset.t);
+  });
+});
+
+// ── 背景图生成（并行，不阻塞对话）──
+const bgLayer = $("bgLayer");
+let bgToken = 0;  // 防止旧请求覆盖新请求
+function triggerBg(text) {
+  // 不 await，并行 fire；图好 fadeIn 切换底层
+  const my = ++bgToken;
+  bgLayer.classList.add("loading");
+  const persona = personas.find(x => x.id === activePersonaId);
+  fetch("/api/bg/gen", {
+    method: "POST", headers: { ...tokHdr(), "Content-Type": "application/json" },
+    body: JSON.stringify({ text, persona: persona ? persona.name : "" }),
+  }).then(r => r.json()).then(d => {
+    if (my !== bgToken) return;
+    bgLayer.classList.remove("loading");
+    if (d.image) {
+      const img = $("bgImg");
+      img.onload = () => { bgLayer.classList.add("show"); addSys("🎨 背景图已生成"); };
+      img.onerror = () => { addErr("背景图加载失败"); };
+      img.src = `data:image/png;base64,${d.image}`;
+    } else if (d.error) {
+      addErr("背景图失败: " + (d.detail || d.error));
+    }
+  }).catch((e) => { if (my === bgToken) { bgLayer.classList.remove("loading"); addErr("背景图请求异常: " + e.message); } });
+}
+
+// ── 发送 ──
+async function sendText(text) {
+  text = (text || "").trim(); if (!text) return;
+  addMsg(text, "u"); box.value = ""; autoGrow();
+  await roundtrip(new URLSearchParams({ text, session_id: sid }));
+}
+
+async function sendAudio(blob) {
+  addSys("识别中…");
+  const fd = new FormData();
+  fd.append("audio", blob, "rec.webm");
+  fd.append("session_id", sid);
+  await roundtrip(fd);
+}
+
+// ── 发图（Canvas 压缩长边 ≤ 800）──
+const imgInput = $("imgInput"), imgBtn = $("imgBtn");
+imgBtn.addEventListener("click", () => imgInput.click());
+imgInput.addEventListener("change", () => {
+  const f = imgInput.files && imgInput.files[0];
+  imgInput.value = "";  // 允许重复选同一张
+  if (!f) return;
+  addSys("处理图片中…");
+  compressImage(f, 800).then(dataUrl => sendImage(dataUrl, f.name))
+    .catch(e => addErr("图片处理失败: " + e.message));
+});
+
+function compressImage(file, maxEdge) {
+  // 读取 → 画到 canvas → 等比缩到长边 maxEdge → 输出 jpeg data URL
+  return new Promise((resolve, reject) => {
+    const fr = new FileReader();
+    fr.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        let { width: w, height: h } = img;
+        const long = Math.max(w, h);
+        if (long > maxEdge) {
+          const scale = maxEdge / long;
+          w = Math.round(w * scale); h = Math.round(h * scale);
+        }
+        const cv = document.createElement("canvas");
+        cv.width = w; cv.height = h;
+        cv.getContext("2d").drawImage(img, 0, 0, w, h);
+        // jpeg 0.85 质量，比 png 小很多，传得快
+        resolve(cv.toDataURL("image/jpeg", 0.85));
+      };
+      img.onerror = () => reject(new Error("图片解码失败"));
+      img.src = fr.result;
+    };
+    fr.onerror = () => reject(new Error("读取失败"));
+    fr.readAsDataURL(file);
+  });
+}
+
+async function sendImage(dataUrl, name) {
+  // 显示图片气泡
+  const d = addMsg("", "u");
+  const im = document.createElement("img");
+  im.src = dataUrl; im.alt = name || "图片";
+  d.appendChild(im);
+  const fd = new FormData();
+  fd.append("image", dataUrl);
+  fd.append("session_id", sid);
+  await roundtrip(fd);
+}
+
+// ── 音频播放队列 ──
+// 文本生成到 ~70% 再开始播（攒够前 N 句才播，避免开头断续）。
+// 微信限制：用单个共享 audio 元素；被拦时用户任意点击页面续播。
+const audioQ = []; let audioPlaying = false; let audioBlocked = false;
+let pendingStart = 0;       // 本轮已入队但还没开始播的句数
+const START_THRESHOLD = 3;  // 攒够 3 句才开始播（近似 70%）
+const sharedAudio = new Audio();
+sharedAudio.addEventListener("ended", () => { audioPlaying = false; playNextAudio(); });
+sharedAudio.addEventListener("error", () => { audioPlaying = false; playNextAudio(); });
+
+function enqueueAudio(b64) {
+  audioQ.push(b64);
+  pendingStart++;
+  // 攒够阈值且当前没在播，才开始播（之后边到边播）
+  if (!audioPlaying && !audioBlocked && pendingStart >= START_THRESHOLD) {
+    pendingStart = 0;
+    playNextAudio();
+  }
+}
+function flushAudioStart() {  // done 时若还没开始播，强制开始
+  if (!audioPlaying && !audioBlocked && audioQ.length) { pendingStart = 0; playNextAudio(); }
+}
+function playNextAudio() {
+  if (audioBlocked) return;
+  const b64 = audioQ.shift();
+  if (!b64) { audioPlaying = false; return; }
+  audioPlaying = true;
+  sharedAudio.src = "data:audio/mp3;base64," + b64;
+  sharedAudio.play().then(() => { audioUnlocked = true; }).catch(() => {
+    audioQ.unshift(b64); audioPlaying = false; audioBlocked = true;
+    statusEl.textContent = "点击页面继续播放语音…";
+  });
+}
+function resumeOnGesture() {
+  if (audioBlocked) { audioBlocked = false; statusEl.textContent = ""; playNextAudio(); }
+}
+document.addEventListener("click", resumeOnGesture);
+document.addEventListener("touchstart", resumeOnGesture, { passive: true });
+const playBtn = $("playBtn");
+playBtn.addEventListener("click", () => { playBtn.classList.add("hidden"); resumeOnGesture(); });
+
+// 重播某条回复的音频（按序播该数组）
+function replayAudios(list) {
+  if (!list || !list.length) return;
+  // 清空当前队列，塞入这条回复的音频
+  audioQ.length = 0; audioPlaying = false;
+  list.forEach(b => audioQ.push(b));
+  pendingStart = 0;
+  if (!audioBlocked) playNextAudio();
+}
+
+async function roundtrip(body) {
+  setBusy(true);
+  const aBubble = addMsg("", "a");
+  const curAudios = [];   // 本条回复的分句音频，供重播
+  try {
+    const r = await fetch("/api/chat/stream", { method: "POST", headers: tokHdr(), body });
+    if (r.status === 401) { showGate(); addErr("口令无效，请重新输入"); setBusy(false); return; }
+    if (!r.body) { addErr("浏览器不支持流式"); setBusy(false); return; }
+
+    const reader = r.body.getReader();
+    const dec = new TextDecoder();
+    let sbuf = "";
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      sbuf += dec.decode(value, { stream: true });
+      let idx;
+      while ((idx = sbuf.indexOf("\n\n")) >= 0) {
+        const raw = sbuf.slice(0, idx); sbuf = sbuf.slice(idx + 2);
+        const line = raw.split("\n").map(s => s.trim()).find(s => s.startsWith("data:"));
+        if (!line) continue;
+        const data = JSON.parse(line.slice(5).trim());
+        if (data.type === "user") {
+          addMsg(data.text, "u");
+        } else if (data.type === "sentence") {
+          aBubble.textContent += data.text;
+          if (data.audio) { curAudios.push(data.audio); enqueueAudio(data.audio); }
+          logEl.scrollTop = logEl.scrollHeight;
+          statusEl.textContent = "回复中…";
+        } else if (data.type === "done") {
+          aBubble.textContent = data.reply || "(空)";
+          flushAudioStart();
+          // 重播按钮（用 button，安卓兼容）
+          const rp = document.createElement("button");
+          rp.className = "replay";
+          rp.textContent = curAudios.length ? ("▶ 重播(" + curAudios.length + "段)") : "▶ 无音频";
+          rp.onclick = (e) => { e.stopPropagation(); if (curAudios.length) replayAudios(curAudios); };
+          aBubble.appendChild(rp);
+          if (data.reply && data.reply.trim()) triggerBg(data.reply);
+        } else if (data.type === "error") {
+          addErr((data.stage || "") + ": " + (data.detail || ""));
+        }
+      }
+    }
+  } catch (e) { addErr("网络错误: " + e.message); }
+  finally { setBusy(false); }
+}
+
+// ── 文字输入 ──
+sendBtn.addEventListener("click", () => sendText(box.value));
+box.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendText(box.value); }
+});
+function autoGrow() { box.style.height = "auto"; box.style.height = Math.min(box.scrollHeight, 90) + "px"; }
+box.addEventListener("input", autoGrow);
+
+// ── 录音 ──
+let mediaRec = null, chunks = [], recording = false;
+async function startRec() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    chunks = [];
+    // 优先 webm/opus，回退由后端 ffmpeg 转 wav
+    let mime = "audio/webm";
+    if (!MediaRecorder.isTypeSupported(mime)) mime = "";
+    mediaRec = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
+    mediaRec.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
+    mediaRec.onstop = () => {
+      stream.getTracks().forEach(t => t.stop());
+      const blob = new Blob(chunks, { type: mime || "audio/webm" });
+      if (blob.size > 0) sendAudio(blob);
+    };
+    mediaRec.start();
+    recording = true; recBtn.classList.add("recording"); recBtn.textContent = "■";
+    statusEl.textContent = "录音中…";
+  } catch (e) { addErr("无法访问麦克风: " + e.message + "（需 HTTPS 并授权）"); }
+}
+function stopRec() {
+  if (mediaRec && recording) { mediaRec.stop(); recording = false; recBtn.classList.remove("recording"); recBtn.textContent = "🎤"; statusEl.textContent = ""; }
+}
+// 点击切换（移动端按住体验差，用点一下开始/再点结束）
+recBtn.addEventListener("click", () => { recording ? stopRec() : startRec(); });
+
+// ── 角色库管理（多角色：名字+温度+提示词，每角色独立会话）──
+const personaDlg = $("personaDlg");
+const pListEl = $("personaList"), pName = $("pName"), pTemp = $("pTemp"), pTempVal = $("pTempVal"), pPrompt = $("pPrompt"), pVoice = $("pVoice");
+const curPersonaEl = $("curPersona");
+let personas = [];          // 全部角色
+let activePersonaId = null; // 当前激活
+let editingId = null;       // 弹窗里正在编辑的角色 id
+let voiceOptions = [["默认（全局）",""]];  // 音色选项 [名字, voice_id]
+
+function sidFor(pid) { return `p-${pid}`; }  // 每角色独立会话 id
+
+function fillVoiceOptions() {
+  pVoice.innerHTML = "";
+  voiceOptions.forEach(([name, vid]) => {
+    const o = document.createElement("option");
+    o.value = vid; o.textContent = name;
+    pVoice.appendChild(o);
+  });
+}
+
+pTemp.addEventListener("input", () => { pTempVal.textContent = parseFloat(pTemp.value).toFixed(1); });
+
+function renderList() {
+  pListEl.innerHTML = "";
+  personas.forEach(p => {
+    const d = document.createElement("div");
+    d.className = "item" + (p.id === editingId ? " editing" : "") + (p.id === activePersonaId ? " active" : "");
+    d.innerHTML = `<span>${escapeHtml(p.name)}</span>`;
+    if (p.id !== "default") {
+      const del = document.createElement("span"); del.className = "del"; del.textContent = "✕";
+      del.onclick = (e) => { e.stopPropagation(); delPersona(p.id); };
+      d.appendChild(del);
+    }
+    d.onclick = () => { selectEditing(p.id); };
+    pListEl.appendChild(d);
+  });
+  const nb = document.createElement("div"); nb.className = "item new"; nb.textContent = "＋ 新建";
+  nb.onclick = () => { newPersona(); };
+  pListEl.appendChild(nb);
+}
+
+function escapeHtml(s) { return (s||"").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c])); }
+
+function selectEditing(pid) {
+  const p = personas.find(x => x.id === pid);
+  if (!p) return;
+  editingId = pid;
+  pName.value = p.name; pTemp.value = p.temperature; pTempVal.textContent = parseFloat(p.temperature).toFixed(1);
+  pPrompt.value = p.prompt;
+  pVoice.value = p.voice || "";
+  renderList();
+}
+
+function newPersona() {
+  const np = { id: "p" + Date.now(), name: "新角色", temperature: 1.0, prompt: "" };
+  personas.push(np);
+  editingId = np.id;
+  pName.value = np.name; pTemp.value = 1.0; pTempVal.textContent = "1.0"; pPrompt.value = ""; pVoice.value = "";
+  renderList(); pName.focus();
+}
+
+function delPersona(pid) {
+  if (pid === "default") return;
+  if (!confirm("删除这个角色？")) return;
+  personas = personas.filter(x => x.id !== pid);
+  if (editingId === pid) editingId = personas[0]?.id || null;
+  if (activePersonaId === pid) { activePersonaId = "default"; saveActive("default"); }
+  renderList();
+  if (editingId) selectEditing(editingId);
+}
+
+function curEditing() {
+  // 把编辑区当前值写回 personas
+  let p = personas.find(x => x.id === editingId);
+  if (!p) return null;
+  p.name = pName.value.trim() || "未命名";
+  p.temperature = parseFloat(pTemp.value);
+  p.prompt = pPrompt.value;
+  p.voice = pVoice.value;
+  return p;
+}
+
+async function saveAll() {
+  curEditing();
+  try {
+    const r = await fetch("/api/personas", {
+      method: "POST", headers: { ...tokHdr(), "Content-Type": "application/json" },
+      body: JSON.stringify({ personas }),
+    });
+    if (r.status === 401) { showGate(); return false; }
+    if (r.ok) { renderList(); return true; }
+    addErr("保存失败"); return false;
+  } catch (e) { addErr("保存失败: " + e.message); return false; }
+}
+
+async function saveActive(pid) {
+  try {
+    await fetch("/api/personas/active", {
+      method: "POST", headers: { ...tokHdr(), "Content-Type": "application/json" },
+      body: JSON.stringify({ id: pid }),
+    });
+    activePersonaId = pid;
+    const p = personas.find(x => x.id === pid);
+    curPersonaEl.textContent = "当前: " + (p ? p.name : "");
+    sid = sidFor(pid);  // 切换会话
+    // 重置音频状态，避免上一角色的队列/阻塞残留影响新角色
+    audioQ.length = 0; audioPlaying = false; audioBlocked = false; pendingStart = 0;
+    sharedAudio.pause();
+    renderList();
+  } catch (e) { addErr("切换失败: " + e.message); }
+}
+
+// ── 清空当前对话 ──
+$("clearBtn").addEventListener("click", async () => {
+  if (!confirm("清空当前角色的对话历史？重新开始沟通。")) return;
+  try {
+    const r = await fetch(`/api/history/clear?session_id=${encodeURIComponent(sid)}`, {
+      method: "POST", headers: tokHdr(),
+    });
+    if (r.status === 401) { showGate(); return; }
+    if (r.ok) { logEl.innerHTML = ""; renderedMsgs.length = 0; addSys("已清空，重新开始 ✓"); }
+  } catch (e) { addErr("清空失败: " + e.message); }
+});
+
+// ── 编辑某条用户消息重发 ──
+function startEdit(msgEl) {
+  const idx = parseInt(msgEl.dataset.idx, 10);
+  const orig = msgEl.dataset.origText != null ? msgEl.dataset.origText : msgEl.firstChild.textContent;
+  msgEl.dataset.origText = orig;
+  // 把气泡内容替换成编辑框
+  const firstText = msgEl.firstChild;  // 原文本节点
+  const editBtn = msgEl.querySelector(".editBtn");
+  // 保存原文本节点并隐藏
+  const ta = document.createElement("textarea");
+  ta.className = "editArea"; ta.value = orig;
+  const acts = document.createElement("div"); acts.className = "editActs";
+  const cancel = document.createElement("button"); cancel.className = "c"; cancel.textContent = "取消";
+  const resend = document.createElement("button"); resend.className = "r"; resend.textContent = "重发";
+  acts.appendChild(cancel); acts.appendChild(resend);
+  // 隐藏原文本和编辑按钮
+  firstText.style.display = "none";
+  if (editBtn) editBtn.style.display = "none";
+  msgEl.appendChild(ta); msgEl.appendChild(acts);
+  ta.focus();
+  cancel.onclick = () => {
+    firstText.style.display = "";
+    if (editBtn) editBtn.style.display = "";
+    ta.remove(); acts.remove();
+  };
+  resend.onclick = async () => {
+    const newText = ta.value.trim();
+    if (!newText) return;
+    // 1. 后端截断历史到 idx（保留前 idx 条，删掉这条及之后）
+    try {
+      const r = await fetch("/api/history/truncate", {
+        method: "POST", headers: { ...tokHdr(), "Content-Type": "application/json" },
+        body: JSON.stringify({ session_id: sid, keep_count: idx }),
+      });
+      if (r.status === 401) { showGate(); return; }
+    } catch (e) { addErr("截断失败: " + e.message); return; }
+    // 2. 前端清掉该气泡及之后的所有 DOM
+    for (let i = renderedMsgs.length - 1; i >= idx; i--) {
+      if (renderedMsgs[i]) renderedMsgs[i].remove();
+    }
+    renderedMsgs.length = idx;
+    // 3. 用新文本走正常流式发送
+    addMsg(newText, "u");
+    await roundtrip(new URLSearchParams({ text: newText, session_id: sid }));
+  };
+}
+
+async function openPersona() {
+  try {
+    const r = await fetch("/api/personas", { headers: tokHdr() });
+    if (r.status === 401) { showGate(); return; }
+    const d = await r.json();
+    personas = d.personas; activePersonaId = d.active_id;
+    if (d.voice_options) { voiceOptions = [["默认（全局）",""]].concat(d.voice_options); fillVoiceOptions(); }
+    editingId = activePersonaId || personas[0]?.id;
+    const ap = personas.find(x => x.id === activePersonaId);
+    curPersonaEl.textContent = "当前: " + (ap ? ap.name : "");
+    sid = sidFor(activePersonaId);
+    if (editingId) selectEditing(editingId);
+    renderList();
+  } catch (e) { addErr("加载角色失败: " + e.message); }
+  personaDlg.classList.remove("hidden");
+}
+function closePersona() { personaDlg.classList.add("hidden"); }
+$("personaBtn").addEventListener("click", openPersona);
+$("personaCancel").addEventListener("click", closePersona);
+$("personaSave").addEventListener("click", async () => {
+  if (await saveAll()) addSys("角色库已保存 ✓");
+});
+$("personaUse").addEventListener("click", async () => {
+  if (!await saveAll()) return;
+  if (!editingId) return;
+  // 切换激活 + 加载该角色的历史（若有）
+  await saveActive(editingId);
+  await loadHistory();
+  addSys(`已切换到「${personas.find(x=>x.id===editingId)?.name}」`);
+  closePersona();
+});
+
+// 首次加载激活角色（不弹窗，只设顶栏 + session）
+async function initPersona() {
+  try {
+    const r = await fetch("/api/personas", { headers: tokHdr() });
+    if (r.status === 401) { showGate(); return; }
+    const d = await r.json();
+    personas = d.personas; activePersonaId = d.active_id;
+    if (d.voice_options) { voiceOptions = [["默认（全局）",""]].concat(d.voice_options); fillVoiceOptions(); }
+    const ap = personas.find(x => x.id === activePersonaId) || personas[0];
+    activePersonaId = ap.id;
+    curPersonaEl.textContent = "当前: " + ap.name;
+    sid = sidFor(ap.id);
+    await loadHistory();   // 刷新后回显当前角色的历史
+  } catch (e) {}
+}
+
+// 加载当前 sid 的历史消息并渲染
+async function loadHistory() {
+  logEl.innerHTML = "";
+  renderedMsgs.length = 0;
+  try {
+    const r = await fetch(`/api/history?session_id=${encodeURIComponent(sid)}`, { headers: tokHdr() });
+    if (r.status === 401) { showGate(); return; }
+    const d = await r.json();
+    (d.messages || []).forEach(m => {
+      addMsg(m.content, m.role === "user" ? "u" : "a");
+    });
+  } catch (e) {}
+}
+
+checkGate();
+initPersona();
+</script>
+</body>
+</html>

@@ -1,0 +1,15 @@
+[Unit]
+Description=Voice Bot (FastAPI + Qwen + StepAudio)
+After=network.target
+
+[Service]
+Type=simple
+User=rsaga
+WorkingDirectory=/home/rsaga/voicebot
+ExecStart=/home/rsaga/voicebot/venv/bin/uvicorn app:app --host 127.0.0.1 --port 8788
+Restart=on-failure
+RestartSec=3
+EnvironmentFile=/home/rsaga/voicebot/.env
+
+[Install]
+WantedBy=multi-user.target
