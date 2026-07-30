@@ -182,3 +182,11 @@ Open `https://your-domain` in a mobile browser, enter the `BOT_TOKEN`.
 ## License
 
 MIT
+
+---
+
+## 入群交流
+
+扫码加入 AJW 微信群，交流项目和产品进展。
+
+![AJW 微信群二维码](assets/ajw-wechat-group-qr.png)
