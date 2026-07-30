@@ -1,10 +1,10 @@
-# Rsaga TRPG Bot 🎭
+# 声境TRPG 🎭
 
 **中文** | [English](#english)
 
-一个手机友好的 H5 多模态 AI 角色扮演 bot —— 语音、文字、图片三模交互，AI 回复带情感语音播报，并根据剧情实时生成黑白漫画背景画。专为 TRPG / 文字冒险 / 角色扮演场景设计。
+声境TRPG是一款手机友好的 H5 多模态 AI 角色扮演应用 —— 语音、文字、图片三模交互，AI 回复带情感语音播报，并根据剧情实时生成黑白漫画背景画。专为 TRPG / 文字冒险 / 角色扮演场景设计。
 
-A mobile-friendly H5 multimodal AI roleplay bot — voice, text, and image interaction, with emotional TTS playback and real-time black-and-white manga background art generated from the story. Built for TRPG / text adventure / roleplay scenarios.
+A mobile-friendly H5 multimodal AI roleplay app — voice, text, and image interaction, with emotional TTS playback and real-time black-and-white manga background art generated from the story. Built for TRPG / text adventure / roleplay scenarios.
 
 ---
 
